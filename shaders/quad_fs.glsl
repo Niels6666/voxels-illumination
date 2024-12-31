@@ -10,8 +10,13 @@ out vec4 out_Color;
 void main(void){
     layout(rgba16f) image2D img = layout(rgba16f) image2D(ImageHandle);
     ivec2 imgSize = imageSize(img);
-
-	vec4 c = imageLoad(img, ivec2(tex_coords * imgSize));
-	out_Color = c;
+	
+	ivec2 coords = ivec2(tex_coords * imgSize);
+	vec4 c = imageLoad(img, coords)*4;
+	c += imageLoad(img, coords+ivec2(+1, 0));
+	c += imageLoad(img, coords+ivec2(-1, 0));
+	c += imageLoad(img, coords+ivec2(0, +1));
+	c += imageLoad(img, coords+ivec2(0, -1));
+	out_Color = c / 8;
     
 }

@@ -14,12 +14,12 @@ float generateDensity(ivec3 world_coords) {
 
     // Perlin's noise
     float amplitude = 0.3f;
-    float frequency = 0.075f;
+    float frequency = 0.0436f;
     
-    for(int i=0; i<6; i++){
+    for(int i=0; i<4; i++){
         density += amplitude * texture(NoiseTex, c * frequency).x;
         amplitude /= 2.457f;
-        frequency *= 2.093;
+        frequency *= 1.493;
     }
 
     return density;

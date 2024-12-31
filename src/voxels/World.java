@@ -140,7 +140,7 @@ public class World {
 	public Vector3f sunLight = new Vector3f(40.0f); // light intensity of the sun
 	public float[] exposure = new float[] {1.0f};
 	public float[] learningRate = new float[] {0.1f};
-	public float[] smoothnessWeight = new float[] {1.0f};
+	public float[] smoothnessWeight = new float[] {0.1f};
 	
 	public Texture2D renderTexture;
 

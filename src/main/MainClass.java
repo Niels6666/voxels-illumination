@@ -51,7 +51,7 @@ public class MainClass extends Application {
 	private int frameWidth;
 	private int frameHeight;
 	
-	private int MAX_TILES = 1<<18;
+	private int MAX_TILES = 1<<19;
 
 	public static void main(String args[]) {
 		launch(new MainClass());
@@ -112,7 +112,7 @@ public class MainClass extends Application {
 		System.out.println("Renderer: " + renderer);
 		System.out.println("OpenGL version: " + major + "." + minor);
 
-		world = new World(new Vector3f(-4 * 2, -4 * 2, -4 * 2), 2f / 64f, 2 * 64, 2 * 64, 2 * 64, MAX_TILES);
+		world = new World(new Vector3f(-4 * 4, -4 * 4, -4 * 4), 2f / 64f, 4 * 64, 4 * 64, 4 * 64, MAX_TILES);
 		world.generate();
 		bloom = new Bloom();
 		camera = new Camera(handle);

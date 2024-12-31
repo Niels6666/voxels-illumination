@@ -31,10 +31,13 @@ void main(){
 			ok_for_rendering = ok_for_raytracing = false;
 		}else{
 			const ivec3 start = ivec3(desc.coords * 4);
+			int outside_count=0;
 			for(int i=0; i<8; i++){
 				ivec3 c = start - unwind3D(i, 2);
-				ok_for_raytracing = ok_for_raytracing && (c.x < 0 || c.y < 0 || c.z < 0 || !testBlockSolid(uvec3(c)));
+				outside_count += int(c.x < 0 || c.y < 0 || c.z < 0 || !testBlockSolid(uvec3(c)));
 			}
+			
+			ok_for_raytracing = outside_count > 4;
 			
 			//if(ok_for_raytracing) ok_for_rendering = false;
 		}
