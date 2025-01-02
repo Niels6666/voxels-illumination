@@ -137,7 +137,7 @@ public class World {
 	public Shader quadShader;
 
 	public Vector3f sunDir = new Vector3f(0.8f, 1.0f, -0.8f).normalize(); // unit direction towards the sun
-	public Vector3f sunLight = new Vector3f(40.0f); // light intensity of the sun
+	public Vector3f sunLight = new Vector3f(200.0f); // light intensity of the sun
 	public float[] exposure = new float[] {1.0f};
 	public float[] learningRate = new float[] {0.1f};
 	public float[] smoothnessWeight = new float[] {0.1f};
@@ -178,15 +178,15 @@ public class World {
 
 	public ArrayList<QueryBuffer> timer = new ArrayList<>(RenderOperations.values().length);
 
-	public World(Vector3f minCorner, float voxelSize, int width, int height, int depth, int maxTiles) {
+	public World(float voxelSize, int width, int height, int depth, int maxTiles) {
 		this.width = width;
 		this.height = height;
 		this.depth = depth;
-
+		
 		System.out.println("Creating world with size: " + width + "x" + height + "x" + depth + " tiles.");
 		System.out.println("Sparsity: " + maxTiles + " / " + width*height*depth + " = " + maxTiles / (float)(width*height*depth));
 
-		this.minCorner = minCorner;
+		this.minCorner = new Vector3f(width, height, depth).mul(voxelSize * -0.5f);
 		this.voxelSize = voxelSize;
 
 		assert width % 4 == 0;
@@ -357,25 +357,27 @@ public class World {
 	}
 
 	private void generateNoiseTextures() {
-		noiseTexture = new Texture3D(GL_R16F, GL_RED, GL_FLOAT, 32, 32, 32, GL_LINEAR, GL_LINEAR, GL_REPEAT);
-		noiseColorsTexture = new Texture3D(GL_RGBA16F, GL_RGBA, GL_FLOAT, 16, 16, 16, GL_LINEAR, GL_LINEAR, GL_REPEAT);
+		final int noise_width = 16;
+		noiseTexture = new Texture3D(GL_RGBA16F, GL_RED, GL_FLOAT, noise_width, noise_width, noise_width, GL_LINEAR, GL_LINEAR, GL_REPEAT);
+		noiseColorsTexture = new Texture3D(GL_RGBA16F, GL_RGBA, GL_FLOAT, noise_width, noise_width, noise_width, GL_LINEAR, GL_LINEAR, GL_REPEAT);
 
 		Random random = new Random(System.currentTimeMillis());
 		float maxValue = 1f, minValue = -1f;
 		float amplitude = maxValue - minValue;
-		int length = 32 * 32 * 32 * 4;
+		int length = noise_width * noise_width * noise_width * 4 * 4;
 		ByteBuffer noiseBuff = MemoryUtil.memAlloc(length);
 		for (int i = 0; i < length / 4; i++) {
 			noiseBuff.putFloat(amplitude * random.nextFloat() + minValue);
 		}
-		noiseTexture.uploadData(noiseBuff.flip(), GL_RED, GL_FLOAT);
+		noiseTexture.uploadData(noiseBuff.flip(), GL_RGBA, GL_FLOAT);
 		MemoryUtil.memFree(noiseBuff);
 
-		ByteBuffer color_noise = MemoryUtil.memAlloc(16 * 16 * 16 * 4 * 4);
-		for (int i = 0; i < 16 * 16 * 16 * 4; i++) {
+		ByteBuffer color_noise = MemoryUtil.memAlloc(noise_width * noise_width * noise_width * 4 * 4);
+		for (int i = 0; i < length / 4; i++) {
 			color_noise.putFloat(random.nextFloat()*1.0f);
 		}
 		noiseColorsTexture.uploadData(color_noise.flip(), GL_RGBA, GL_FLOAT);
+		MemoryUtil.memFree(color_noise);
 
 	}
 
@@ -452,28 +454,40 @@ public class World {
 	}
 
 	public void generate() {
+//
+//		System.out.println("Exiting");
+//		System.exit(-1);
+		
 		generateShader.start();
 		generateShader.loadUInt64("noiseTexHandle", noiseTexture.tex_handle);
 		glDispatchCompute(width, height, depth);
 		glMemoryBarrier(GL_ALL_BARRIER_BITS);
 		generateShader.stop();
+		
+		checkErrors();
 
-		generateBlocksShader.start();
-		generateBlocksShader.loadUInt64("noiseTexHandle", noiseColorsTexture.tex_handle);
-		glDispatchCompute(maxTiles, 1, 1);
-		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-		generateBlocksShader.stop();
+//		generateBlocksShader.start();
+//		generateBlocksShader.loadUInt64("noiseTexHandle", noiseColorsTexture.tex_handle);
+//		glDispatchCompute(maxTiles, 1, 1);
+//		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+//		generateBlocksShader.stop();
+//
+//		checkErrors();
 		
-		allocate_probes_shader.start();
-		glDispatchCompute((maxTiles+7)/8, 1, 1);
-		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-		allocate_probes_shader.stop();
-		
-		filter_valid_probes_shader.start();
-		glDispatchCompute((maxTiles+63)/64, 1, 1);
-		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-		filter_valid_probes_shader.stop();
-		
+//		allocate_probes_shader.start();
+//		glDispatchCompute((maxTiles+7)/8, 1, 1);
+//		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+//		allocate_probes_shader.stop();
+//
+//		checkErrors();
+//		
+//		filter_valid_probes_shader.start();
+//		glDispatchCompute((maxTiles+63)/64, 1, 1);
+//		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+//		filter_valid_probes_shader.stop();
+//
+//		checkErrors();
+//		
 //		init_probes_shader.start();
 //		init_probes_shader.loadUInt64("noiseTexHandle", noiseColorsTexture.tex_handle);
 //		glDispatchCompute((maxTiles+3)/4, 1, 1);
@@ -492,7 +506,7 @@ public class World {
 		num_valid_probes_for_rendering_and_raytracing_cpu.x = buff.getInt();
 		num_valid_probes_for_rendering_and_raytracing_cpu.y = buff.getInt();
 		glUnmapNamedBuffer(num_valid_probes_for_rendering_and_raytracing.ID);
-		
+
 	}
 
 	public void renderBoxesDebug(Camera camera, int level) {

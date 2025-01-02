@@ -2,3 +2,4 @@ bin/*
 target/*
 .lwjgl/*
 BRDF_LUT.exr
+/target/

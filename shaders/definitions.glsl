@@ -1,10 +1,17 @@
 #ifndef DEFINITIONS
 #define DEFINITIONS
 
-struct Handle{
-    uint64_t tex;
-    uint64_t img;
+struct texture_handle{
+	uint64_t tex;
+	uint64_t img;
 };
+
+struct buffer_handle{
+	uint64_t ptr;
+	int64_t size;
+};
+
+
 struct TileDescriptor{
     ivec3 coords;
     int status; // 0 if not allocated, 1 if allocated
@@ -46,10 +53,10 @@ struct World{
     vec3 minCorner;
     float voxelSize;
 
-    Handle occupancy;
-    Handle block_ids;
-	Handle probes_occupancy;
-	Handle probes_lerp;
+    texture_handle occupancy;
+    texture_handle block_ids;
+	texture_handle probes_occupancy;
+	texture_handle probes_lerp;
 	
 	restrict f16vec4* probes_values;
 	restrict vec4* probes_ray_dirs;
@@ -258,5 +265,14 @@ void reportBufferError(int line, int64_t index, int64_t size, vec4 floatData){
     debugStructsArray[n].floatData = 2;
     debugStructsArray[n].data = floatBitsToInt(floatData);
 }
+
+#define TestBounds(index, size) (index >= 0 && index < size) ? (true) : (reportBufferError(__LINE__, index, size),false)
+#define reportFalse(predicate) (predicate) ? (predicate) : (reportBufferError(__LINE__, 0, 0),false)
+#define PtrLoad(ptr, index, size, default_res) (((index) >= 0 && (index) < size) ? ptr[(index)] : (reportBufferError(__LINE__, (index), size), default_res))
+#define ArrayLoad(type, buf, index, default_res) ((index >= 0 && index < buf.size) ? ((restrict type*)buf.ptr)[index] : (reportBufferError(__LINE__, index, buf.size), default_res))
+#define ArrayStore(type, buf, index, val) if(index >= 0 && index < buf.size) { ((restrict type*)buf.ptr)[index] = val; }else{ reportBufferError(__LINE__, index, buf.size); };
+#define ArrayStoreField(type, field, buf, index, val) if(index >= 0 && index < buf.size) { ((restrict type*)buf.ptr)[index].field = val; }else{ reportBufferError(__LINE__, index, buf.size); };
+
+
 
 #endif

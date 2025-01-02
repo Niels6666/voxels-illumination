@@ -79,6 +79,8 @@ public class MainClass extends Application {
 		glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 		glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 		glfwWindowHint(GLFW_SAMPLES, 8);
+		//glfwWindowHint(GLFW_CONTEXT_ROBUSTNESS, GLFW_LOSE_CONTEXT_ON_RESET);
+		//glfwWindowHint(GLFW_CONTEXT_DEBUG, GLFW_OPENGL_DEBUG_CONTEXT);
 
 		handle = glfwCreateWindow(640, 300, "voxels !", NULL, NULL);
 
@@ -101,6 +103,10 @@ public class MainClass extends Application {
 
 		glClearColor(colorBg.getRed(), colorBg.getGreen(), colorBg.getBlue(), colorBg.getAlpha());
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		System.out.println(glGetString(GL_VENDOR));
+		System.out.println(glGetString(GL_RENDERER));
+		System.out.println(glGetString(GL_VERSION));
 	}
 
 	@Override
@@ -112,9 +118,9 @@ public class MainClass extends Application {
 		System.out.println("Renderer: " + renderer);
 		System.out.println("OpenGL version: " + major + "." + minor);
 
-		world = new World(new Vector3f(-4 * 4, -4 * 4, -4 * 4), 2f / 64f, 4 * 64, 4 * 64, 4 * 64, MAX_TILES);
+		world = new World(2.0f / 64.0f, 2 * 64, 2 * 64, 1 * 64, MAX_TILES);
 		world.generate();
-		bloom = new Bloom();
+		//bloom = new Bloom();
 		camera = new Camera(handle);
 	}
 
@@ -182,7 +188,7 @@ public class MainClass extends Application {
 		
 		if(ImGui.button("!!! REGENERATE WORLD !!!")) {
 			world.delete();
-			world = new World(new Vector3f(-4 * 2, -4 * 2, -4 * 2), 2f / 64f, 2 * 64, 2 * 64, 2 * 64, MAX_TILES);
+			world = new World(2f / 64f, 2 * 64, 2 * 64, 2 * 64, MAX_TILES);
 			world.generate();
 		}
 	}

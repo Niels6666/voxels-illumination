@@ -41,13 +41,14 @@ void main(){
 	
 	if(level == 0){
 		const int u = vertexID_gs[0];
+		const int w = world.tiles_width / 4;
 		const int h = world.tiles_height / 4;
 		const int d = world.tiles_depth / 4;
-		// u = i + j * h + k * h * d
+		// u = i + j * w + k * w * h
 
-		int k = u / (h * d);
-		int j = (u - k * h * d) / h;
-		int i = (u - k * h * d - j * h);
+		int k = u / (w * h);
+		int j = (u - k * w * h) / w;
+		int i = (u - k * w * h - j * w);
 
 		uint64_t mask = fetchCompressedOccupancy(0, u);
 		if(mask == 0UL){

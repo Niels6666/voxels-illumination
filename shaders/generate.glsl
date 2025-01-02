@@ -63,70 +63,63 @@ void main(void){
     }
 
     barrier();
+    
+    if(gl_LocalInvocationIndex != 0){
+    	return;
+    }
 
     int totalInsideCount = sharedInsideCounts[0] + sharedInsideCounts[1]; 
 
     if(totalInsideCount == 0){
         // the tile is fully outside
-        if(gl_LocalInvocationIndex == 0){
-            imageStore(layout(r32i) iimage3D(world.occupancy.img), ivec3(gl_WorkGroupID), ivec4(-1, 0, 0, 0));
-        }
+        imageStore(layout(r32i) iimage3D(world.occupancy.img), ivec3(gl_WorkGroupID), ivec4(-1, 0, 0, 0));
         return;
     }
 
     if(totalInsideCount == 6*6*6){
         // the tile is fully inside
-        if(gl_LocalInvocationIndex == 0){
-            imageStore(layout(r32i) iimage3D(world.occupancy.img), ivec3(gl_WorkGroupID), ivec4(-2, 0, 0, 0));
-            
-            ivec3 coarseCoords = ivec3(gl_WorkGroupID) / 4;
-            int offset = coarseCoords.x + coarseCoords.y * (world.tiles_width/4) + coarseCoords.z * (world.tiles_width/4) * (world.tiles_height/4);
-            ivec3 subCoords = ivec3(gl_WorkGroupID) % 4;
-            int n = subCoords.x + subCoords.y * 4 + subCoords.z * 16; // in [0, 63]
-            atomicOr(world.compressed_inside_terrain + offset, uint64_t(1UL) << n);
-            
-        }
+        imageStore(layout(r32i) iimage3D(world.occupancy.img), ivec3(gl_WorkGroupID), ivec4(-2, 0, 0, 0));
+        
+        ivec3 coarseCoords = ivec3(gl_WorkGroupID) / 4;
+        int offset = coarseCoords.x + coarseCoords.y * (world.tiles_width/4) + coarseCoords.z * (world.tiles_width/4) * (world.tiles_height/4);
+        ivec3 subCoords = ivec3(gl_WorkGroupID) % 4;
+        int n = subCoords.x + subCoords.y * 4 + subCoords.z * 16; // in [0, 63]
+        atomicOr(world.compressed_inside_terrain + offset, uint64_t(1UL) << n);
+        
         return;
     }
-
+    
     // we are neither fully inside nor outside
     // we must allocate a new tile!
 
-    if(gl_LocalInvocationIndex == 0){
-        // allocate one tile
-        int free_tile_index = stack_pop((volatile int*)world.num_free_tiles, 1);
-        if(free_tile_index < 0){
-            // we ran out of space, abort
-            tile_index = -1;
-        }else{
-            // grab the index of the tile from the stack of free tiles
-            tile_index = world.free_tiles_stack[free_tile_index];
-            // write -1 to show that the tile is no longer available
-            world.free_tiles_stack[free_tile_index] = -1;
-
-            // write the occupancy masks
-            ((uvec2*)world.compressed_atlas)[tile_index] = local_masks;
-
-            // write the compressed_occupancy mask
+    // allocate one tile
+    int free_tile_index = stack_pop((volatile int*)world.num_free_tiles, 1);
     
-            ivec3 coarseCoords = ivec3(gl_WorkGroupID) / 4;
-            int offset = coarseCoords.x + coarseCoords.y * (world.tiles_width/4) + coarseCoords.z * (world.tiles_width/4) * (world.tiles_height/4);
-            ivec3 subCoords = ivec3(gl_WorkGroupID) % 4;
-            int n = subCoords.x + subCoords.y * 4 + subCoords.z * 16; // in [0, 63]
-            atomicOr(world.compressed_occupancy + offset, uint64_t(1UL) << n);
-
-            // write the tile descriptor
-            world.tiles[tile_index] = TileDescriptor(ivec3(gl_WorkGroupID), 1);
-
-            const int atlasCoords = packivec3(unwind3D(tile_index, world.atlas_tile_size));
-            imageStore(layout(r32i) iimage3D(world.occupancy.img), ivec3(gl_WorkGroupID), ivec4(atlasCoords, 0, 0, 0));
-        }
-    }
-    barrier();
-
-    if(tile_index < 0){
+    if(free_tile_index < 0){
         // we ran out of space, abort
-        return;
+        tile_index = -1;
+    }else{
+        // grab the index of the tile from the stack of free tiles
+        tile_index = world.free_tiles_stack[free_tile_index];
+        // write -1 to show that the tile is no longer available
+        world.free_tiles_stack[free_tile_index] = -1;
+
+        // write the occupancy masks
+        ((uvec2*)world.compressed_atlas)[tile_index] = local_masks;
+
+        // write the tile descriptor
+        world.tiles[tile_index] = TileDescriptor(ivec3(gl_WorkGroupID), 1);
+
+        const int atlasCoords = packivec3(unwind3D(tile_index, world.atlas_tile_size));
+        imageStore(layout(r32i) iimage3D(world.occupancy.img), ivec3(gl_WorkGroupID), ivec4(atlasCoords, 0, 0, 0));
+        
+        // write the compressed_occupancy mask
+        ivec3 coarseCoords = ivec3(gl_WorkGroupID) / 4;
+        int offset = coarseCoords.x + coarseCoords.y * (world.tiles_width/4) + coarseCoords.z * (world.tiles_width/4) * (world.tiles_height/4);
+        ivec3 subCoords = ivec3(gl_WorkGroupID) % 4;
+        int n = subCoords.x + subCoords.y * 4 + subCoords.z * 16; // in [0, 63]
+        atomicOr(world.compressed_occupancy + offset, uint64_t(1UL) << n);
+        
     }
 
 }
