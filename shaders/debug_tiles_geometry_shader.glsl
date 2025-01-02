@@ -59,7 +59,7 @@ void main(){
 		minCorner = toWorldCoords(coords * 16);
 		maxCorner = toWorldCoords(coords * 16 + 16);
 	}else if(level == 1){
-		TileDescriptor desc = world.tiles[vertexID_gs[0]];
+		TileDescriptor desc = ArrayLoad(TileDescriptor, world.tiles, vertexID_gs[0], TileDescriptor(ivec3(0), 0));
 		if(desc.status == 0){
 			return;
 		}
@@ -68,7 +68,7 @@ void main(){
 		minCorner = toWorldCoords(coords * 4);
 		maxCorner = toWorldCoords(coords * 4 + 4);
 	}else{
-		TileDescriptor desc = world.tiles[vertexID_gs[0] / 64];
+		TileDescriptor desc = ArrayLoad(TileDescriptor, world.tiles, (vertexID_gs[0] / 64), TileDescriptor(ivec3(0), 0));
 		if(desc.status == 0){
 			return;
 		}

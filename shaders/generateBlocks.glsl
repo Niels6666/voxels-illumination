@@ -79,13 +79,13 @@ void main(void){
 
     const int tile_id = int(gl_WorkGroupID.x);
 
-    TileDescriptor descriptor = world.tiles[tile_id];
+    TileDescriptor descriptor = ArrayLoad(TileDescriptor, world.tiles, tile_id, TileDescriptor(ivec3(0), 0));
 
     if(descriptor.status == 0){
         return; // not allocated
     }
 
-    const uint64_t mask = world.compressed_atlas[tile_id];
+    const uint64_t mask = ArrayLoad(uint64_t, world.compressed_atlas, tile_id, 0UL);
     const bool isInside = checkMask(mask, ivec3(gl_LocalInvocationID));
     const ivec3 world_coords = descriptor.coords * 4 + ivec3(gl_LocalInvocationID);
 

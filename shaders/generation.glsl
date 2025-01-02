@@ -72,7 +72,7 @@ float generateDensity(ivec3 world_coords) {
     sampler3D NoiseTex = sampler3D(noiseTexHandle);
 
     // map voxel coordinates to [-1, 1]
-    vec3 c = 2.0f * (vec3(world_coords) + 0.5f) / (4.0f * vec3(world.tiles_height, world.tiles_width, world.tiles_depth)) - 1.0f;
+    vec3 c = 2.0f * (vec3(world_coords) + 0.5f) / (4.0f * vec3(min(world.tiles_width, world.tiles_depth))) - 1.0f;
 
     float density = c.y+0.5f;
     

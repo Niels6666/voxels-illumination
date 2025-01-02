@@ -57,6 +57,11 @@ public class Query {
 	public void getResult(long[] res){
 		glGetQueryObjecti64v(ID, GL_QUERY_RESULT, res);
 	}
-	
+
+	public long getResult(){
+		long[] res = new long[1];
+		glGetQueryObjecti64v(ID, GL_QUERY_RESULT, res);
+		return res[0];
+	}
 
 }

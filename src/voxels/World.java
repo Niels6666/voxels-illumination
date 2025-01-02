@@ -2,7 +2,7 @@ package voxels;
 
 import utils.BindlessBuffer;
 import utils.Camera;
-import utils.Noise3D;
+import utils.Query;
 import utils.QueryBuffer;
 import utils.Shader;
 import utils.Texture2D;
@@ -130,7 +130,6 @@ public class World {
 
 	public Shader debugTilesShader;
 	public Shader debugProbesShader;
-	public Shader debugRaysShader;
 	
 	public Shader renderShader;
 	public Shader renderReflectionShader;
@@ -160,7 +159,6 @@ public class World {
 	public int probe_index_offset_smoothing = 0;
 	
 	public Shader allocate_probes_shader;
-	public Shader init_probes_shader;
 	public Shader raytrace_probes_shader;
 	public Shader smooth_probes_shader;
 	public Shader write_probes_lerp_shader;
@@ -290,7 +288,7 @@ public class World {
 	private void loadShaders() {
 		generateShader = new Shader("shaders/generate.glsl");
 		generateShader.finishInit();
-		generateShader.init_uniforms("noiseTexHandle");
+		generateShader.init_uniforms("noiseTexHandle", "GLOBAL_GENERATION_TILE_OFFSET");
 
 		generateBlocksShader = new Shader("shaders/generateBlocks.glsl");
 		generateBlocksShader.finishInit();
@@ -308,13 +306,6 @@ public class World {
 		debugProbesShader.finishInit();
 		debugProbesShader.init_uniforms("projectionView");
 		
-		debugRaysShader = new Shader(
-				"shaders/debug_rays_vertex_shader.glsl", 
-				"shaders/debug_rays_geometry_shader.glsl", 
-				"shaders/debug_rays_fragment_shader.glsl");
-		debugRaysShader.finishInit();
-		debugRaysShader.init_uniforms("projectionView", "selected_probe");
-
 		renderShader = new Shader("shaders/render.glsl");
 		renderShader.finishInit();
 		renderShader.init_uniforms("K", "ViewMatrix", "RenderImageHandle", "sunDir", "sunLight", "exposure");
@@ -331,9 +322,6 @@ public class World {
 
 		allocate_probes_shader = new Shader("shaders/allocate_probes.glsl");
 		allocate_probes_shader.finishInit();
-		init_probes_shader = new Shader("shaders/init_probes.glsl");
-		init_probes_shader.finishInit();
-		init_probes_shader.init_uniforms("noiseTexHandle");
 		raytrace_probes_shader = new Shader("shaders/raytrace_probes.glsl");
 		raytrace_probes_shader.finishInit();
 		raytrace_probes_shader.init_uniforms("random_rotation", "probe_index_offset", "sunDir", "sunLight", "LearningRate");
@@ -392,7 +380,7 @@ public class World {
 
 	public void prepareWorldUBO() {
 		MemoryStack stack = MemoryStack.stackPush();
-		ByteBuffer bigbuffer = stack.malloc(16, 16 * 16);
+		ByteBuffer bigbuffer = stack.malloc(16, 23 * 16);
 
 		bigbuffer.putInt(width);
 		bigbuffer.putInt(height);
@@ -402,48 +390,48 @@ public class World {
 		putVec3(bigbuffer, minCorner);
 		bigbuffer.putFloat(voxelSize);
 
-		occupancy.writeHandle(bigbuffer);
-		block_ids.writeHandle(bigbuffer);
-		
-		probes_occupancy.writeHandle(bigbuffer);
-		probes_lerp.writeHandle(bigbuffer);
-		probes_values.writePointer(bigbuffer);
-		probes_ray_dirs.writePointer(bigbuffer);
-		free_probes_stack.writePointer(bigbuffer);
-		num_free_probes.writePointer(bigbuffer);
-		
-		probes.writePointer(bigbuffer);
-		updated_probes_values.writePointer(bigbuffer);
-		
-		block_types_buffer.writePointer(bigbuffer);
-		bigbuffer.putInt(Blocks.values().length);
+		int atlas_tile_size = block_ids.width / 4;
 		int probes_lerp_half_size = (int)Math.ceil(Math.sqrt(maxTiles));
+		bigbuffer.putInt(atlas_tile_size);
+		bigbuffer.putInt(Blocks.values().length);
 		bigbuffer.putInt(probes_lerp_half_size);
-
-		compressed_occupancy.writePointer(bigbuffer);
-		compressed_atlas.writePointer(bigbuffer);
-
-		tiles.writePointer(bigbuffer);
-		free_tiles_stack.writePointer(bigbuffer);
+		bigbuffer.putInt(0);
 
 		num_free_tiles.writePointer(bigbuffer);
-		int atlas_tile_size = block_ids.width / 4;
-		bigbuffer.putInt(atlas_tile_size);
-		bigbuffer.putInt(0);
+		num_free_probes.writePointer(bigbuffer);
+		bigbuffer.putLong(num_valid_probes_for_rendering_and_raytracing.ptr);
+		bigbuffer.putLong(num_valid_probes_for_rendering_and_raytracing.ptr + Integer.BYTES);
+
+		occupancy.writeHandle(bigbuffer);
+		block_ids.writeHandle(bigbuffer);
+		probes_occupancy.writeHandle(bigbuffer);
+		probes_lerp.writeHandle(bigbuffer);
+		
+		probes_values.writeHandle(bigbuffer, 4*2);   //f16vec4
+		probes_ray_dirs.writeHandle(bigbuffer, 4*4); // vec4
+		free_probes_stack.writeHandle(bigbuffer, 4); // int
+		
+		probes.writeHandle(bigbuffer, 4*4); // ProbeDescriptor
+		updated_probes_values.writeHandle(bigbuffer, 4*2); // f16vec4
+		
+		block_types_buffer.writeHandle(bigbuffer, 2*4*1); // BlockData, u8vec4*2
+
+		compressed_occupancy.writeHandle(bigbuffer, Long.BYTES); // uint64_t
+		compressed_atlas.writeHandle(bigbuffer, Long.BYTES); // uint64_t
+
+		tiles.writeHandle(bigbuffer, 4*4); // TileDescriptor
+		free_tiles_stack.writeHandle(bigbuffer, 4); // int
 
 		if (performanceCounters != null) {
 			performanceCounters.delete();
 		}
 		performanceCounters = new BindlessBuffer(4 * Integer.BYTES, 0, null);
-		performanceCounters.writePointer(bigbuffer);
-		compressed_inside_terrain.writePointer(bigbuffer);
+		performanceCounters.writeHandle(bigbuffer, 4 * Integer.BYTES); // PerformanceCounters
+		compressed_inside_terrain.writeHandle(bigbuffer, Long.BYTES); // uint64_t
 		
-		valid_probes_for_rendering.writePointer(bigbuffer);
-		valid_probes_for_raytracing.writePointer(bigbuffer);
+		valid_probes_for_rendering.writeHandle(bigbuffer, 4); // int
+		valid_probes_for_raytracing.writeHandle(bigbuffer, 4); // int
 		
-		bigbuffer.putLong(num_valid_probes_for_rendering_and_raytracing.ptr);
-		bigbuffer.putLong(num_valid_probes_for_rendering_and_raytracing.ptr + Integer.BYTES);
-
 		long size = bigbuffer.position();
 		if (worldUBO != null) {
 			worldUBO.delete();
@@ -454,46 +442,60 @@ public class World {
 	}
 
 	public void generate() {
-//
-//		System.out.println("Exiting");
-//		System.exit(-1);
+		Query q = new Query(GL_TIME_ELAPSED);
 		
+		final int TILES_PER_BATCH = 16384 * 32;
+		q.begin();
 		generateShader.start();
 		generateShader.loadUInt64("noiseTexHandle", noiseTexture.tex_handle);
-		glDispatchCompute(width, height, depth);
+		for(int i=0; i<width*height*depth; i += TILES_PER_BATCH) {
+			System.out.println("Offset: " + i + " / " + width*height*depth);
+			generateShader.loadInt("GLOBAL_GENERATION_TILE_OFFSET", i);
+			glDispatchCompute(TILES_PER_BATCH, 1, 1);
+			glMemoryBarrier(GL_ALL_BARRIER_BITS);
+			checkErrors();
+		}
 		glMemoryBarrier(GL_ALL_BARRIER_BITS);
 		generateShader.stop();
+		q.end();
 		
 		checkErrors();
 
-//		generateBlocksShader.start();
-//		generateBlocksShader.loadUInt64("noiseTexHandle", noiseColorsTexture.tex_handle);
-//		glDispatchCompute(maxTiles, 1, 1);
-//		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-//		generateBlocksShader.stop();
-//
-//		checkErrors();
-		
-//		allocate_probes_shader.start();
-//		glDispatchCompute((maxTiles+7)/8, 1, 1);
-//		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-//		allocate_probes_shader.stop();
-//
-//		checkErrors();
-//		
-//		filter_valid_probes_shader.start();
-//		glDispatchCompute((maxTiles+63)/64, 1, 1);
-//		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-//		filter_valid_probes_shader.stop();
-//
-//		checkErrors();
-//		
-//		init_probes_shader.start();
-//		init_probes_shader.loadUInt64("noiseTexHandle", noiseColorsTexture.tex_handle);
-//		glDispatchCompute((maxTiles+3)/4, 1, 1);
-//		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-//		init_probes_shader.stop();
+		System.out.println(String.format("Generated Occupancy in %.3f s", 1.0E-9 * q.getResult()));
 
+		q.begin();
+		generateBlocksShader.start();
+		generateBlocksShader.loadUInt64("noiseTexHandle", noiseColorsTexture.tex_handle);
+		glDispatchCompute(maxTiles, 1, 1);
+		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+		generateBlocksShader.stop();
+		q.end();
+		
+		checkErrors();
+		System.out.println(String.format("Generated Blocks in %.3f s", 1.0E-9 * q.getResult()));
+
+		q.begin();
+		allocate_probes_shader.start();
+		glDispatchCompute((maxTiles+7)/8, 1, 1);
+		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+		allocate_probes_shader.stop();
+		q.end();
+		
+		checkErrors();
+		System.out.println(String.format("Allocated Probes in %.3f s", 1.0E-9 * q.getResult()));
+
+		q.begin();
+		filter_valid_probes_shader.start();
+		glDispatchCompute((maxTiles+63)/64, 1, 1);
+		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+		filter_valid_probes_shader.stop();
+		q.end();
+		
+		checkErrors();
+		System.out.println(String.format("Filtered Valid Probes in %.3f s", 1.0E-9 * q.getResult()));
+		
+		
+		
 		ByteBuffer buff = glMapNamedBuffer(num_free_tiles.ID, GL_READ_ONLY);
 		num_free_tiles_cpu = buff.getInt();
 		glUnmapNamedBuffer(num_free_tiles.ID);
@@ -506,6 +508,8 @@ public class World {
 		num_valid_probes_for_rendering_and_raytracing_cpu.x = buff.getInt();
 		num_valid_probes_for_rendering_and_raytracing_cpu.y = buff.getInt();
 		glUnmapNamedBuffer(num_valid_probes_for_rendering_and_raytracing.ID);
+		
+		System.out.println("Finished Generating world.");
 
 	}
 
@@ -551,23 +555,6 @@ public class World {
 		debugProbesShader.stop();
 	}
 
-	public void renderRaysDebug(Camera camera) {
-//		debugRaysShader.start();
-//		Matrix4f projview = camera.getProjectionMatrix().mul(camera.getViewMatrix(), new Matrix4f());
-//		debugRaysShader.loadMat4("projectionView", projview);
-//		debugRaysShader.loadInt("selected_probe", probe_index_offset);
-//		
-//		VAO vao = new VAO();
-//		vao.bind();
-//		glLineWidth(1);
-//		glDrawArrays(GL_POINTS, 0, SAMPLES_PER_PROBE);
-//		vao.unbind();
-//		vao.delete();
-//
-//		debugRaysShader.stop();
-//		
-	}
-	
 	private void updatePerformanceCounters() {
 		try (MemoryStack stack = MemoryStack.stackPush()) {
 			IntBuffer ints = stack.mallocInt((int) (performanceCounters.size_bytes / 4));
@@ -629,13 +616,14 @@ public class World {
 		renderShader.loadVec4("K", K);
 		renderShader.loadMat4("ViewMatrix", V);
 		renderShader.loadUInt64("RenderImageHandle", renderTexture.img_handle);
-
 		renderShader.loadVec3("sunDir", sunDir);
 		renderShader.loadVec3("sunLight", sunLight);
 		renderShader.loadFloat("exposure", exposure[0]);
 		glDispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
 		renderShader.stop();
 		glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+		checkErrors();
 
 //		renderReflectionShader.start();
 //		renderReflectionShader.loadVec4("K", K);
@@ -688,6 +676,8 @@ public class World {
 			glDispatchCompute(MAX_PROBES_TO_UPDATE, 1, 1);
 			glMemoryBarrier(GL_ALL_BARRIER_BITS);
 			raytrace_probes_shader.stop();
+
+			checkErrors();
 			
 			write_probes_lerp_shader.start();
 			write_probes_lerp_shader.loadInt("probe_index_offset", probe_index_offset_raytracing);
@@ -696,6 +686,8 @@ public class World {
 			glDispatchCompute((MAX_PROBES_TO_UPDATE + 3) / 4, 1, 1);
 			glMemoryBarrier(GL_ALL_BARRIER_BITS);
 			write_probes_lerp_shader.stop();
+			
+			checkErrors();
 
 			probe_index_offset_raytracing = (probe_index_offset_raytracing + MAX_PROBES_TO_UPDATE) % num_valid_probes_for_rendering_and_raytracing_cpu.y;
 		}
@@ -709,6 +701,8 @@ public class World {
 			glMemoryBarrier(GL_ALL_BARRIER_BITS);
 			smooth_probes_shader.stop();
 			
+			checkErrors();
+			
 			write_probes_lerp_shader.start();
 			write_probes_lerp_shader.loadInt("probe_index_offset", probe_index_offset_smoothing);
 			write_probes_lerp_shader.loadInt("num_updated_probes", MAX_PROBES_TO_UPDATE);
@@ -716,6 +710,8 @@ public class World {
 			glDispatchCompute((MAX_PROBES_TO_UPDATE + 3) / 4, 1, 1);
 			glMemoryBarrier(GL_ALL_BARRIER_BITS);
 			write_probes_lerp_shader.stop();
+
+			checkErrors();
 			
 			probe_index_offset_smoothing = (probe_index_offset_smoothing + MAX_PROBES_TO_UPDATE) % num_valid_probes_for_rendering_and_raytracing_cpu.x;
 		}
@@ -804,6 +800,9 @@ public class World {
 		}
 		glUnmapNamedBuffer(debugBlockBuffer.ID);
 		prepareDebugBlock();
+		if(error) {
+			System.exit(-1);
+		}
 		return error;
 	}
 

@@ -47,11 +47,11 @@ vec3 computeRadiance(vec3 start, vec3 ray, out float t_voxel) {
 			
 			const int packedAtlasCoords = texelFetch(isampler3D(world.occupancy.tex), ivec3(cell >> 2u), 0).x;
 			const ivec3 atlasCoords = unpackivec3(packedAtlasCoords) * 4 + ivec3(cell & 3u);
-			const uint voxel_type = texelFetch(usampler3D(world.block_ids.tex), atlasCoords, 0).x;
+			const int voxel_type = texelFetch(isampler3D(world.block_ids.tex), atlasCoords, 0).x;
 			
 			const vec3 normal = -sign(ray) * vec3(last_step);
 			
-			BlockData data = world.block_types[voxel_type];
+			const BlockData data = ArrayLoad(BlockData, world.block_types, voxel_type, default_BlockData);
 			const vec4 albedo_emission = data.albedo_emission_strength / 255.0f;
 			const vec2 roughness_metallic = (data.roughness_metallic / 255.0f).xy;
 			const vec3 albedo = vec3(albedo_emission);
@@ -116,18 +116,19 @@ void main(){
 
 	const int num_valid_probes_for_raytracing = *world.num_valid_probes_for_raytracing;
 	
-	const int probe_index = world.valid_probes_for_raytracing[(int(gl_WorkGroupID.x) + probe_index_offset) % num_valid_probes_for_raytracing];
+	const int k = (int(gl_WorkGroupID.x) + probe_index_offset) % num_valid_probes_for_raytracing;
+	const int probe_index = ArrayLoad(int, world.valid_probes_for_raytracing, k, -1);
 
-	const ProbeDescriptor desc = world.probes[probe_index];
+	const ProbeDescriptor desc = ArrayLoad(ProbeDescriptor, world.probes, probe_index, default_ProbeDescriptor);
 	if(desc.status == 0){
 		return;
 	}
 	
 	// Step 1: trace rays
 	const vec3 start = vec3(desc.coords * 4);
-	const vec3 ray = mat3(random_rotation) * vec3(world.probes_ray_dirs[gl_LocalInvocationID.x]);
+	const vec3 ray = mat3(random_rotation) * vec3(ArrayLoad(vec4, world.probes_ray_dirs, int(gl_LocalInvocationID.x), vec4(0)));
 	const vec3 offset_start = start + ray * 0.01f;
-	const bool isRayInsideTerrain = offset_start.x >= 0.0f && offset_start.y >= 0.0f && offset_start.z >= 0.0f && testBlockSolid(uvec3(offset_start));
+	const bool isRayInsideTerrain = offset_start.x >= 0.0f && offset_start.y >= 0.0f && offset_start.z >= 0.0f && testBlockSolid(ivec3(offset_start));
 	
 	float t_voxel = +1.0f / 0.0f;
 	vec3 radiance = vec3(0.0f);
@@ -178,12 +179,12 @@ void main(){
 	
 	const int valid_samples = num_samples - sumInsideTerrain;
 	
-	const vec4 previous_value = world.probes_values[probe_index * 16 + lane];
+	const vec4 previous_value = ArrayLoad(f16vec4, world.probes_values, (probe_index * 16 + lane), f16vec4(0.0f));
 	
 	vec4 new_value = vec4(sumCoeff / max(valid_samples, 1), valid_samples / float(num_samples));
 	
 	new_value = mix(previous_value, new_value, LearningRate);
 	
-	world.updated_probes_values[int(gl_WorkGroupID.x) * 16 + lane] = f16vec4(new_value);
+	ArrayStore(f16vec4, world.updated_probes_values, (int(gl_WorkGroupID.x) * 16 + lane), f16vec4(new_value));
 
 }

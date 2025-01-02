@@ -5,6 +5,7 @@
 #extension GL_ARB_shader_clock : enable
 #extension GL_ARB_shading_language_include :   require
 #extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_NV_shader_atomic_int64 : enable
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -50,11 +51,11 @@ void main(void){
 		
 			const int packedAtlasCoords = texelFetch(isampler3D(world.occupancy.tex), ivec3(cell >> 2u), 0).x;
 			const ivec3 atlasCoords = unpackivec3(packedAtlasCoords) * 4 + ivec3(cell & 3u);
-			const uint voxel_type = texelFetch(usampler3D(world.block_ids.tex), atlasCoords, 0).x;
+			const int voxel_type = texelFetch(isampler3D(world.block_ids.tex), atlasCoords, 0).x;
 			
 			const vec3 normal = -sign(ray) * vec3(last_step);
 			
-			BlockData data = world.block_types[voxel_type];
+			const BlockData data = ArrayLoad(BlockData, world.block_types, voxel_type, default_BlockData);
 			const vec4 albedo_emission = data.albedo_emission_strength / 255.0f;
 			const vec2 roughness_metallic = (data.roughness_metallic / 255.0f).xy;
 			const vec3 albedo = vec3(albedo_emission);
@@ -98,10 +99,9 @@ void main(void){
 	ivec4 total = subgroupAdd(ivec4(int(iterations), int(isPixelOnVoxel), int(hitBox), 0));
 
 	if(gl_SubgroupInvocationID == 0u){
-		atomicAdd((int*)world.perf + 0, total.x);
-		atomicAdd((int*)world.perf + 1, total.y);
-		atomicAdd((int*)world.perf + 2, total.z);
-
+		atomicAdd((restrict int*)world.performanceCounters.ptr + 0, total.x);
+		atomicAdd((restrict int*)world.performanceCounters.ptr + 1, total.y);
+		atomicAdd((restrict int*)world.performanceCounters.ptr + 2, total.z);
 	}
 
 

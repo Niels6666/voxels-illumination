@@ -56,9 +56,10 @@ void main(){
 	const int coeff = int(gl_GlobalInvocationID.x) % 16;
 	const int probe_idx = int(gl_GlobalInvocationID.x) / 16;
 	
-	const int probe_index = world.valid_probes_for_rendering[(probe_idx + probe_index_offset) % num_valid_probes_for_smoothing];
+	const int k = (probe_idx + probe_index_offset) % num_valid_probes_for_smoothing;
+	const int probe_index = ArrayLoad(int, world.valid_probes_for_rendering, k, -1);
 
-	const ProbeDescriptor desc = world.probes[probe_index];
+	const ProbeDescriptor desc = ArrayLoad(ProbeDescriptor, world.probes, probe_index, default_ProbeDescriptor);
 	if(desc.status == 0){
 		return;
 	}
@@ -68,14 +69,14 @@ void main(){
 	loadNeighborProbesIndices(desc, coeff, group);
 	subgroupBarrier();
 	
-	const vec4 previous_value = world.probes_values[probe_index * 16 + coeff];
+	const vec4 previous_value = ArrayLoad(f16vec4, world.probes_values, (probe_index * 16 + coeff), f16vec4(0.0f));
 	
 	float sum_weights = 1.0f;
 	vec4 avg = vec4(previous_value) * sum_weights;
 	for(int i=0; i<6; i++){
 		if(neighbors[group][i] >= 0){
 			const float w = SmoothnessWeight;
-			avg += world.probes_values[neighbors[group][i] * 16 + coeff] * w;
+			avg += ArrayLoad(f16vec4, world.probes_values, (neighbors[group][i] * 16 + coeff), f16vec4(0.0f)) * w;
 			sum_weights += w;
 		}
 	}
@@ -83,6 +84,6 @@ void main(){
 	
 	const vec4 new_value = mix(previous_value, avg, LearningRate);
 	
-	world.updated_probes_values[probe_idx * 16 + coeff] = f16vec4(new_value);
+	ArrayStore(f16vec4, world.updated_probes_values, (probe_idx * 16 + coeff), f16vec4(new_value));
 
 }

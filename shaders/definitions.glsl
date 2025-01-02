@@ -22,6 +22,9 @@ struct ProbeDescriptor{
     int status; // 0 if not allocated, 1 if allocated
 };
 
+const TileDescriptor default_TileDescriptor = TileDescriptor(ivec3(0), 0);
+const ProbeDescriptor default_ProbeDescriptor = ProbeDescriptor(ivec3(0), 0);
+
 
 //// Block types
 
@@ -36,6 +39,8 @@ struct BlockData{
 	u8vec4 albedo_emission_strength; 
 	u8vec4 roughness_metallic;       // last two components are unused 
 };
+
+const BlockData default_BlockData = BlockData(u8vec4(0), u8vec4(0));
 
 struct PerformanceCounters{
 	int mainWindowIterationCount;
@@ -53,42 +58,41 @@ struct World{
     vec3 minCorner;
     float voxelSize;
 
+    int atlas_tile_size;
+    int max_block_types;
+    int probes_lerp_half_size;
+    int padd0;
+
+    restrict int* num_free_tiles;
+	restrict int* num_free_probes;
+	restrict int* num_valid_probes_for_rendering;
+	restrict int* num_valid_probes_for_raytracing;
+
     texture_handle occupancy;
     texture_handle block_ids;
 	texture_handle probes_occupancy;
 	texture_handle probes_lerp;
 	
-	restrict f16vec4* probes_values;
-	restrict vec4* probes_ray_dirs;
+	buffer_handle probes_values; // f16vec4*
+	buffer_handle probes_ray_dirs; // vec4*
 	
-	restrict int* free_probes_stack;
-	restrict int* num_free_probes;
+	buffer_handle free_probes_stack; // int*
 	
-	restrict ProbeDescriptor* probes;
-	restrict f16vec4* updated_probes_values;
+	buffer_handle probes; // ProbeDescriptor*
+	buffer_handle updated_probes_values; // f16vec4* 
 	
-    restrict BlockData* block_types;
-    int max_block_types;
-    int probes_lerp_half_size;
-        
-    restrict uint64_t* compressed_occupancy; // each bit is 1 if a given tile is allocated, 0 otherwise
-    restrict uint64_t* compressed_atlas;     // each bit is 1 if a given voxel is solid, 0 otherwise (air)
+    buffer_handle block_types; // BlockData*
+    buffer_handle compressed_occupancy; // uint64_t* each bit is 1 if a given tile is allocated, 0 otherwise
+    buffer_handle compressed_atlas; // uint64_t* each bit is 1 if a given voxel is solid, 0 otherwise (air)
     
-    restrict TileDescriptor* tiles;
-    restrict int* free_tiles_stack;
+    buffer_handle tiles; // TileDescriptor* 
+    buffer_handle free_tiles_stack; // int* 
 
-    restrict int* num_free_tiles;
-    int atlas_tile_size;
-    int padd1;
-    
-    restrict PerformanceCounters* perf;
-    restrict uint64_t* compressed_inside_terrain; // each bit is 1 if a given tile is fully solid, 0 if the tile is fully empty (air).
+    buffer_handle performanceCounters; // PerformanceCounters*
+    buffer_handle compressed_inside_terrain; // uint64_t* each bit is 1 if a given tile is fully solid, 0 if the tile is fully empty (air).
 
-	restrict int* valid_probes_for_rendering;  // these probes can be used for exponential averaging and rendering
-	restrict int* valid_probes_for_raytracing; // these probes can be used for tracing rays
-	
-	restrict int* num_valid_probes_for_rendering;
-	restrict int* num_valid_probes_for_raytracing;
+	buffer_handle valid_probes_for_rendering;  // int* these probes can be used for exponential averaging and rendering
+	buffer_handle valid_probes_for_raytracing; // int* these probes can be used for tracing rays
 
 };
 
@@ -183,21 +187,6 @@ int wind2D(ivec2 c, int S){
 	return c.x + c.y * S;
 }
 
-uint64_t fetchCompressedOccupancy(const int level, const uint block_id){
-    if(level == 0){
-        return world.compressed_occupancy[block_id];
-    }else{
-        return world.compressed_atlas[block_id];
-    }
-}
-
-uint64_t fetchCompressedOccupancy(const int level, const int block_id){
-    if(level == 0){
-        return world.compressed_occupancy[block_id];
-    }else{
-        return world.compressed_atlas[block_id];
-    }
-}
 
 /**
  * Packs an ivec3 into a 32 bit integer
@@ -274,5 +263,18 @@ void reportBufferError(int line, int64_t index, int64_t size, vec4 floatData){
 #define ArrayStoreField(type, field, buf, index, val) if(index >= 0 && index < buf.size) { ((restrict type*)buf.ptr)[index].field = val; }else{ reportBufferError(__LINE__, index, buf.size); };
 
 
+uint64_t fetchCompressedOccupancy(const int level, const int block_id){
+    if(level == 0){
+        return ArrayLoad(uint64_t, world.compressed_occupancy, block_id, 0UL);
+    }else{
+        return ArrayLoad(uint64_t, world.compressed_atlas, block_id, 0UL);
+    }
+}
+
+void setFlag(buffer_handle buff, int offset, int n){
+	if(TestBounds(offset, buff.size)){
+	    atomicOr((restrict uint64_t*)buff.ptr + offset, uint64_t(1UL) << n);
+	}
+}
 
 #endif

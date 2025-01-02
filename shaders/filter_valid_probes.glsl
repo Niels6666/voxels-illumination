@@ -25,7 +25,7 @@ void main(){
 	bool ok_for_raytracing = true;
 
 	if(probe_index < world.maxTiles){
-		const ProbeDescriptor desc = world.probes[probe_index];
+		const ProbeDescriptor desc = ArrayLoad(ProbeDescriptor, world.probes, probe_index, default_ProbeDescriptor);
 	
 		if(desc.status == 0){
 			ok_for_rendering = ok_for_raytracing = false;
@@ -34,7 +34,7 @@ void main(){
 			int outside_count=0;
 			for(int i=0; i<8; i++){
 				ivec3 c = start - unwind3D(i, 2);
-				outside_count += int(c.x < 0 || c.y < 0 || c.z < 0 || !testBlockSolid(uvec3(c)));
+				outside_count += int(c.x < 0 || c.y < 0 || c.z < 0 || !testBlockSolid(c));
 			}
 			
 			ok_for_raytracing = outside_count > 4;
@@ -71,10 +71,10 @@ void main(){
 	valid_for_raytracing_count += subgroupBallotExclusiveBitCount(uvec4(valid_for_raytracing_mask, 0, 0, 0));
 	
 	if(ok_for_rendering){
-		world.valid_probes_for_rendering[valid_for_rendering_count] = probe_index;
+		ArrayStore(int, world.valid_probes_for_rendering, int(valid_for_rendering_count), probe_index);
 	}
 	if(ok_for_raytracing){
-		world.valid_probes_for_raytracing[valid_for_raytracing_count] = probe_index;
+		ArrayStore(int, world.valid_probes_for_raytracing, int(valid_for_raytracing_count), probe_index);
 	}
 	
 	

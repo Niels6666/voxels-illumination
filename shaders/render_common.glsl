@@ -30,26 +30,26 @@ vec3 computeCamCenter(const mat4 ViewMatrix){
 }
 
 // tests if a voxel is allocated at the given coordinate
-bool testBlockAllocated(const uvec3 coords){
-	const uvec3 worldSize = uvec3(world.tiles_width, world.tiles_height, world.tiles_depth) * 4u;
-    const uvec3 worldSuperTileSize = worldSize / 16u;
+bool testBlockAllocated(const ivec3 coords){
+	const ivec3 worldSize = ivec3(world.tiles_width, world.tiles_height, world.tiles_depth) * 4;
+    const ivec3 worldSuperTileSize = worldSize / 16;
 
-	if(any(greaterThanEqual(coords, worldSize))){
+	if(any(greaterThanEqual(coords, worldSize)) || any(lessThan(coords, ivec3(0)))){
 		return false;
 	}
 	
-	const uvec3 cell_s0 = coords >> 0u;
-	const uvec3 cell_s2 = coords >> 2u;
-	const uvec3 cell_s4 = coords >> 4u;
+	const ivec3 cell_s0 = coords >> 0;
+	const ivec3 cell_s2 = coords >> 2;
+	const ivec3 cell_s4 = coords >> 4;
 
-	const uint super_tile_id = cell_s4.x + worldSuperTileSize.y * (cell_s4.y + cell_s4.z * worldSuperTileSize.z);
+	const int super_tile_id = cell_s4.x + worldSuperTileSize.x * (cell_s4.y + cell_s4.z * worldSuperTileSize.y);
 	const uint64_t compressedOccupancy0 = fetchCompressedOccupancy(0, super_tile_id);
 	
 	if(compressedOccupancy0 == 0UL){
 		return false;
 	}
 
-	if(!checkMask(compressedOccupancy0, cell_s2 & 3u)){
+	if(!checkMask(compressedOccupancy0, cell_s2 & 3)){
 		return false;
 	}
 
@@ -57,7 +57,7 @@ bool testBlockAllocated(const uvec3 coords){
 	const int tile_id = wind3D(unpackivec3(atlasCoords), world.atlas_tile_size);
 	const uint64_t compressedOccupancy1 = fetchCompressedOccupancy(1, tile_id);
 
-	if(!checkMask(compressedOccupancy1, cell_s0 & 3u)){
+	if(!checkMask(compressedOccupancy1, cell_s0 & 3)){
 		return false;
 	}
 
@@ -65,16 +65,16 @@ bool testBlockAllocated(const uvec3 coords){
 }
 
 // tests if the given coordinate is considered to be inside the terrain
-bool testBlockSolid(const uvec3 coords){
-	const uvec3 worldSize = uvec3(world.tiles_width, world.tiles_height, world.tiles_depth) * 4u;
-    const uvec3 worldSuperTileSize = worldSize / 16u;
+bool testBlockSolid(const ivec3 coords){
+	const ivec3 worldSize = ivec3(world.tiles_width, world.tiles_height, world.tiles_depth) * 4;
+    const ivec3 worldSuperTileSize = worldSize / 16;
 
-	if(any(greaterThanEqual(coords, worldSize))){
+	if(any(greaterThanEqual(coords, worldSize)) || any(lessThan(coords, ivec3(0)))){
 		return false;
 	}
 	
-	const uvec3 cell_s0 = coords >> 0u;
-	const uvec3 cell_s2 = coords >> 2u;
+	const ivec3 cell_s0 = coords >> 0;
+	const ivec3 cell_s2 = coords >> 2;
 
 	const int atlasCoords = texelFetch(isampler3D(world.occupancy.tex), ivec3(cell_s2), 0).x;
 	
@@ -89,52 +89,52 @@ bool testBlockSolid(const uvec3 coords){
 	const int tile_id = wind3D(unpackivec3(atlasCoords), world.atlas_tile_size);
 	const uint64_t compressedOccupancy1 = fetchCompressedOccupancy(1, tile_id);
 
-	return checkMask(compressedOccupancy1, cell_s0 & 3u);
+	return checkMask(compressedOccupancy1, cell_s0 & 3);
 }
 
-uint testOccupancy(
+int testOccupancy(
         const bvec3 mirrors,
 		const vec3 start,
         const vec3 abs_ray,
 		const vec3 inv_abs_ray,
-		const uvec3 current_cell,
-		inout uvec3 previous_true_cell)
+		const ivec3 current_cell,
+		inout ivec3 previous_true_cell)
 {
 
-    const uvec3 worldSize = uvec3(world.tiles_width, world.tiles_height, world.tiles_depth) * 4u;
-    const uvec3 worldSuperTileSize = worldSize / 16u;
+    const ivec3 worldSize = ivec3(world.tiles_width, world.tiles_height, world.tiles_depth) * 4;
+    const ivec3 worldSuperTileSize = worldSize / 16;
 
-	if(any(greaterThanEqual(current_cell, worldSize))){
-		return 16u;
+	if(any(greaterThanEqual(current_cell, worldSize)) || any(lessThan(current_cell, ivec3(0)))){
+		return 16;
 	}
 
-    const uvec3 true_cell = mix(current_cell, worldSize - 1 - current_cell, mirrors);
-	const uvec3 cell_s0 = true_cell >> 0u;
-	const uvec3 cell_s2 = true_cell >> 2u;
-	const uvec3 cell_s4 = true_cell >> 4u;
+    const ivec3 true_cell = mix(current_cell, worldSize - 1 - current_cell, mirrors);
+	const ivec3 cell_s0 = true_cell >> 0;
+	const ivec3 cell_s2 = true_cell >> 2;
+	const ivec3 cell_s4 = true_cell >> 4;
 
     previous_true_cell = true_cell;
 
-	const uint super_tile_id = cell_s4.x + worldSuperTileSize.y * (cell_s4.y + cell_s4.z * worldSuperTileSize.z);
+	const int super_tile_id = cell_s4.x + worldSuperTileSize.x * (cell_s4.y + cell_s4.z * worldSuperTileSize.y);
 	const uint64_t compressedOccupancy0 = fetchCompressedOccupancy(0, super_tile_id);
 	
 	if(compressedOccupancy0 == 0UL){
-		return 16u;
+		return 16;
 	}
 
-	if(!checkMask(compressedOccupancy0, cell_s2 & 3u)){
-		return 4u;
+	if(!checkMask(compressedOccupancy0, cell_s2 & 3)){
+		return 4;
 	}
 
 	const int atlasCoords = texelFetch(isampler3D(world.occupancy.tex), ivec3(cell_s2), 0).x;
 	const int tile_id = wind3D(unpackivec3(atlasCoords), world.atlas_tile_size);
 	const uint64_t compressedOccupancy1 = fetchCompressedOccupancy(1, tile_id);
 
-	if(!checkMask(compressedOccupancy1, cell_s0 & 3u)){
-		return 1u;
+	if(!checkMask(compressedOccupancy1, cell_s0 & 3)){
+		return 1;
 	}
 
-	return 0u;
+	return 0;
 }
 
 // All inputs must be in must be in grid coords: start, tmin, tmax
@@ -153,12 +153,12 @@ uvec3 trace(vec3 start, const vec3 ray, const float tmin, const float tmax,
     const vec3 abs_ray = abs(ray);
     const vec3 inv_abs_ray = 1.0f / abs_ray;
 
-    const uvec3 worldSize = uvec3(world.tiles_width, world.tiles_height, world.tiles_depth) * 4u;
+    const ivec3 worldSize = ivec3(world.tiles_width, world.tiles_height, world.tiles_depth) * 4;
 	// mirror start if necessary
 	start = mix(start, worldSize - start, mirrors);
 
-    uvec3 current_cell = uvec3(start + abs_ray * t);
-    uvec3 previous_true_cell = uvec3(-1);
+    ivec3 current_cell = ivec3(start + abs_ray * t);
+    ivec3 previous_true_cell = ivec3(-1);
 
 	last_step = bvec3(false);
 
@@ -166,7 +166,7 @@ uvec3 trace(vec3 start, const vec3 ray, const float tmin, const float tmax,
 	t_voxel = +1.0f / 0.0f; // +inf
 	while(t < tmax - eps && iterations < 500){
 
-		const uint skip = testOccupancy(
+		const int skip = testOccupancy(
             mirrors,
             start,
             abs_ray,
@@ -174,15 +174,15 @@ uvec3 trace(vec3 start, const vec3 ray, const float tmin, const float tmax,
             current_cell,
             previous_true_cell);
 
-		if(skip == 0u){
+		if(skip == 0){
 			t_voxel = t;
 			break;
 		}
 
-		uvec3 next_cell = (current_cell & ~(skip-1u)) + skip;
+		ivec3 next_cell = (current_cell & ~(skip-1)) + skip;
 		const vec3 next_intersections = (vec3(next_cell) - start) * inv_abs_ray;
 		const float t_next = min(next_intersections.x, min(next_intersections.y, next_intersections.z));
-		const uvec3 predicted_cell = uvec3(start + abs_ray * t_next); // predict the other two coordinates
+		const ivec3 predicted_cell = ivec3(start + abs_ray * t_next); // predict the other two coordinates
 		last_step = equal(vec3(t_next), next_intersections);
 		next_cell = mix(predicted_cell, next_cell, last_step);
 

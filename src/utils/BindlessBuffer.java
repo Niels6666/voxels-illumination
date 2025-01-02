@@ -62,4 +62,14 @@ public class BindlessBuffer {
         assert buff.position() % 8 == 0;
         buff.putLong(ptr);
     }
+
+    /**
+     * increments the position by 16
+     */
+    public void writeHandle(ByteBuffer dest, int elementSize) {
+		assert dest.position()%16 == 0;
+		assert size_bytes%elementSize == 0;
+		dest.putLong(ptr);
+		dest.putLong(size_bytes / elementSize);
+	}
 }

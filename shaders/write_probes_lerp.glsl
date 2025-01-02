@@ -27,26 +27,28 @@ void main(){
 	
 	int probe_index = 0;
 	if(raytracing_or_smoothing == 0){
-		int num_probes = *world.num_valid_probes_for_raytracing;
-		probe_index = world.valid_probes_for_raytracing[(probe_index_offset + updated_probe_index) % num_probes];
+		const int num_probes = *world.num_valid_probes_for_raytracing;
+		const int k = (probe_index_offset + updated_probe_index) % num_probes;
+		probe_index = ArrayLoad(int, world.valid_probes_for_raytracing, k, -1);
 	}else{
-		int num_probes = *world.num_valid_probes_for_rendering;
-		probe_index = world.valid_probes_for_rendering[(probe_index_offset + updated_probe_index) % num_probes];
+		const int num_probes = *world.num_valid_probes_for_rendering;
+		const int k = (probe_index_offset + updated_probe_index) % num_probes;
+		probe_index = ArrayLoad(int, world.valid_probes_for_rendering, k, -1);
 	}
 	
 	if(updated_probe_index > num_updated_probes){
 		return;
 	}
 
-	const ProbeDescriptor desc = world.probes[probe_index];
+	const ProbeDescriptor desc = ArrayLoad(ProbeDescriptor, world.probes, probe_index, default_ProbeDescriptor);
 	if(desc.status == 0){
 		return;
 	}
 	
 	// Step 1: overwrite the old values with the new values
-	const f16vec4 value = world.updated_probes_values[updated_probe_index * 16 + coeff];
+	const f16vec4 value = ArrayLoad(f16vec4, world.updated_probes_values, (updated_probe_index * 16 + coeff), f16vec4(0.0f));
 	
-	world.probes_values[probe_index * 16 + coeff] = value;
+	ArrayStore(f16vec4, world.probes_values, (probe_index * 16 + coeff), value);
 	
 	// Step 2: write the new values in the lerp texture
 	layout(r32i) iimage3D tiles_occupancy = layout(r32i) iimage3D(world.occupancy.img);

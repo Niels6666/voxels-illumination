@@ -23,7 +23,7 @@ uniform mat4 projectionView;
 
 void main(){
 
-	const ProbeDescriptor desc = world.probes[vertexID_gs[0]];
+	const ProbeDescriptor desc = ArrayLoad(ProbeDescriptor, world.probes, vertexID_gs[0], ProbeDescriptor(ivec3(0), 0));
 	if(desc.status == 0){
 		return;
 	}
@@ -32,7 +32,7 @@ void main(){
 
 	gl_Position = projectionView * vec4(coords.x, coords.y, coords.z, 1.0f);
 	
-	vec4 v = world.probes_values[vertexID_gs[0] * 16 + 0];
+	vec4 v = ArrayLoad(f16vec4, world.probes_values, (vertexID_gs[0] * 16 + 0), f16vec4(0.0f));
 	
 	color = vec4(v.www, 1);
 

@@ -38,7 +38,6 @@ import voxels.World;
 public class MainClass extends Application {
 	boolean renderBoxesDebug = false;
 	boolean renderProbesDebug = false;
-	boolean renderRaysDebug = false;
 	int debugLevels[] = new int[1];
 	boolean events = true;
 
@@ -118,7 +117,7 @@ public class MainClass extends Application {
 		System.out.println("Renderer: " + renderer);
 		System.out.println("OpenGL version: " + major + "." + minor);
 
-		world = new World(2.0f / 64.0f, 2 * 64, 2 * 64, 1 * 64, MAX_TILES);
+		world = new World(2.0f / 64.0f, 2 * 64, 64, 2 * 64, MAX_TILES);
 		world.generate();
 		//bloom = new Bloom();
 		camera = new Camera(handle);
@@ -148,9 +147,6 @@ public class MainClass extends Application {
 		if(renderProbesDebug) {
 			world.renderProbesDebug(camera);
 		}
-		if(renderRaysDebug) {
-			world.renderRaysDebug(camera);
-		}
 		
 	}
 
@@ -176,10 +172,6 @@ public class MainClass extends Application {
 		if (ImGui.checkbox("render probes", renderProbesDebug)) {
 			renderProbesDebug = !renderProbesDebug;
 		}
-		if (ImGui.checkbox("render rays", renderRaysDebug)) {
-			renderRaysDebug = !renderRaysDebug;
-		}
-		
 		world.layout();
 //		bloom.layout();
 		events = !ImGui.isWindowHovered() && !ImGui.isWindowFocused();

@@ -40,16 +40,16 @@ void allocateProbe(const ivec3 coords){
             probe_index = -1;
         }else{
             // grab the index of the tile from the stack of free probes
-            probe_index = world.free_probes_stack[free_probe_index];
+            probe_index = ArrayLoad(int, world.free_probes_stack, free_probe_index, -1);
             // write -1 to show that the tile is no longer available
-            world.free_probes_stack[free_probe_index] = -1;
+            ArrayStore(int, world.free_probes_stack, free_probe_index, -1);
         }
         
         // write the index of the probe or release the lock
 		imageAtomicExchange(layout(r32i) iimage3D(world.probes_occupancy.img), coords, probe_index);
 		
 		if(probe_index != -1) {
-			world.probes[probe_index] = ProbeDescriptor(ivec3(coords), 1);
+			ArrayStore(ProbeDescriptor, world.probes, probe_index, ProbeDescriptor(ivec3(coords), 1));
 		}
 		
 	}else if(result == LOCK){
@@ -69,10 +69,11 @@ void main(){
 	const int tile_index = int(gl_GlobalInvocationID.x) / 8;
 	const int corner_index = int(gl_GlobalInvocationID.x) % 8;
 
-	if(tile_index > world.maxTiles){
+	if(tile_index >= world.maxTiles){
 		return;
 	}
-	const TileDescriptor desc = world.tiles[tile_index];
+	
+	const TileDescriptor desc = ArrayLoad(TileDescriptor, world.tiles, tile_index, default_TileDescriptor);
 	if(desc.status == 0){
 		return;
 	}
